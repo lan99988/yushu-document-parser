@@ -63,22 +63,20 @@ def safe_extract_zip(archive_path: str | Path, destination: str | Path) -> list[
 def find_artifacts(output_dir: str | Path) -> dict[str, object]:
     root = Path(output_dir)
     markdown_files = sorted(path for path in root.rglob("*.md") if path.is_file())
-    content_files = sorted(
-        path for path in root.rglob("*.json")
-        if path.is_file() and (path.name == "content_list.json" or path.name.endswith("_content_list.json"))
-    )
+    structured_content_files = sorted(path for path in root.rglob("structured_content.json") if path.is_file())
+    middle_json_files = sorted(path for path in root.rglob("middle_json.json") if path.is_file())
     images = sorted(
         path for path in root.rglob("*")
         if path.is_file() and path.parent.name.lower() == "images"
     )
     markdown_path = markdown_files[0] if markdown_files else None
-    content_path = content_files[0] if content_files else None
     preview = ""
     if markdown_path:
         preview = markdown_path.read_text(encoding="utf-8", errors="replace")[:600]
     return {
         "markdown_path": str(markdown_path.resolve()) if markdown_path else None,
-        "content_list_path": str(content_path.resolve()) if content_path else None,
+        "structured_content_path": str(structured_content_files[0].resolve()) if structured_content_files else None,
+        "middle_json_path": str(middle_json_files[0].resolve()) if middle_json_files else None,
         "image_paths": [str(path.resolve()) for path in images],
         "preview": preview,
     }

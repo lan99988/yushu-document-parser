@@ -3,6 +3,8 @@ param(
     [ValidateSet("local", "remote")]
     [string]$Backend = "local",
     [string]$RemoteUrl,
+    [string]$RemoteToken,
+    [string]$TorchIndexUrl,
     [string]$InstallRoot,
     [string]$OutputRoot,
     [string]$CodexConfigPath,
@@ -53,11 +55,11 @@ if ($Backend -eq "remote") {
 
 $systemPython = Get-Command python -ErrorAction SilentlyContinue
 if (-not $systemPython) {
-    throw "未找到 Python。请先安装 Python 3.11 或 3.12，并确保 python 命令可用。"
+    throw "未找到 Python。请先安装 Python 3.10 到 3.14，并确保 python 命令可用。"
 }
 $versionText = (& $systemPython.Source --version 2>&1 | Out-String).Trim()
-if ($versionText -notmatch "^Python 3\.(11|12)\.") {
-    throw "需要 Python 3.11 或 3.12（MinerU 3.2.3 的 Windows 支持范围）；当前为：$versionText"
+if ($versionText -notmatch "^Python 3\.(10|11|12|13|14)\.") {
+    throw "需要 Python 3.10 到 3.14（MinerU 4.0.7 的支持范围）；当前为：$versionText"
 }
 
 $cpuOnly = $false
@@ -134,12 +136,21 @@ if ($Backend -eq "local") {
         }
         if ($LASTEXITCODE -ne 0) { throw "安装 CPU 版 PyTorch 失败。" }
     }
-    if ($uv) {
-        & $uv.Source pip install --python $venvPython "mineru[pipeline]==3.2.3"
-    } else {
-        & $venvPython -m pip install "mineru[pipeline]==3.2.3"
+    if ($TorchIndexUrl) {
+        if ($uv) {
+            & $uv.Source pip install --python $venvPython --index-url $TorchIndexUrl --extra-index-url "https://pypi.org/simple" "torch>=2.6,<3" torchvision
+        } else {
+            & $venvPython -m pip install --index-url $TorchIndexUrl --extra-index-url "https://pypi.org/simple" "torch>=2.6,<3" torchvision
+        }
+        if ($LASTEXITCODE -ne 0) { throw "安装指定 PyTorch wheel 失败。" }
     }
-    if ($LASTEXITCODE -ne 0) { throw "安装 MinerU 3.2.3 失败。" }
+    $mineruPackage = if ($cpuOnly) { "mineru==4.0.7" } else { "mineru[full]==4.0.7" }
+    if ($uv) {
+        & $uv.Source pip install --python $venvPython $mineruPackage
+    } else {
+        & $venvPython -m pip install $mineruPackage
+    }
+    if ($LASTEXITCODE -ne 0) { throw "安装 MinerU 4.0.7 失败。" }
 }
 
 $envConfig = [ordered]@{
@@ -148,6 +159,7 @@ $envConfig = [ordered]@{
 }
 if ($Backend -eq "remote") {
     $envConfig["DOCUMENT_PARSER_REMOTE_URL"] = $RemoteUrl.TrimEnd("/")
+    if ($RemoteToken) { $envConfig["DOCUMENT_PARSER_REMOTE_TOKEN"] = $RemoteToken }
 }
 $mcpArgsJson = ConvertTo-Json -InputObject ([string[]]@("-m", "document_parser_mcp.server")) -Compress
 $mcpEnvJson = ConvertTo-Json -InputObject $envConfig -Compress
@@ -173,7 +185,7 @@ Write-Host "安装完成。请重启 Codex 和 WorkBuddy 以加载 document-pars
 Write-Host "解析产物目录：$OutputRoot"
 Write-Host "当前后端：$Backend"
 if ($Backend -eq "local") {
-    Write-Host "MinerU 3.2.3 已安装；模型会在首次解析时下载。"
+    Write-Host "MinerU 4.0.7 已安装；模型会在首次解析时下载。"
 } else {
     Write-Host "远程文件将发送到：$RemoteUrl"
 }

@@ -6,10 +6,15 @@ from typing import Mapping
 from .artifacts import allocate_output_dir, find_artifacts
 
 
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
+MODEL_TIER_EXTENSIONS = {".pdf", *IMAGE_EXTENSIONS}
 SUPPORTED_EXTENSIONS = {
-    ".pdf", ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff",
-    ".docx", ".pptx", ".xlsx",
+    *MODEL_TIER_EXTENSIONS,
+    ".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx", ".rtf",
+    ".odt", ".ods", ".odp", ".epub", ".ofd", ".html", ".htm",
+    ".mhtml", ".mht", ".csv", ".tsv",
 }
+TIERS = {"auto", "flash", "basic", "standard", "advanced"}
 
 
 class ParserService:
@@ -23,29 +28,43 @@ class ParserService:
         self.backends = dict(backends)
         self.default_backend = default_backend
 
-    def parse_one(self, file_path: str, language: str = "ch", backend: str | None = None) -> dict:
+    def parse_one(self, file_path: str, tier: str = "auto", backend: str | None = None) -> dict:
         source = Path(file_path).expanduser().resolve()
         selected_backend = backend or self.default_backend
         if not source.is_file():
             return self._error(source, selected_backend, f"文件不存在：{source}")
         if source.suffix.lower() not in SUPPORTED_EXTENSIONS:
             return self._error(source, selected_backend, f"不支持的文件类型：{source.suffix or '无扩展名'}")
+        if tier not in TIERS:
+            return self._error(source, selected_backend, f"不支持的 MinerU 解析档位：{tier}")
+        extension = source.suffix.lower()
+        if tier == "auto":
+            selected_tier = "standard" if extension in MODEL_TIER_EXTENSIONS else "flash"
+        elif extension not in MODEL_TIER_EXTENSIONS and tier != "flash":
+            return self._error(source, selected_backend, f"{extension} 文件仅支持 flash 档位")
+        else:
+            selected_tier = tier
         implementation = self.backends.get(selected_backend)
         if implementation is None:
             return self._error(source, selected_backend, f"后端“{selected_backend}”未配置；未自动切换到其他后端")
 
         output_dir = allocate_output_dir(self.output_root, source)
         try:
-            backend_result = implementation.parse_file(source, output_dir, language=language)
+            backend_result = implementation.parse_file(source, output_dir, tier=selected_tier)
             artifacts = find_artifacts(output_dir)
             if isinstance(backend_result, dict):
-                artifacts.update({key: value for key, value in backend_result.items() if key in {"markdown_path", "content_list_path", "image_paths", "preview"} and value is not None})
+                artifacts.update({
+                    key: value for key, value in backend_result.items()
+                    if key in {"markdown_path", "structured_content_path", "middle_json_path", "image_paths", "preview"}
+                    and value is not None
+                })
             if not artifacts["markdown_path"]:
                 raise RuntimeError("解析没有生成 Markdown 文件")
             return {
                 "status": "success",
                 "input_path": str(source),
                 "backend": selected_backend,
+                "tier": selected_tier,
                 "output_dir": str(output_dir.resolve()),
                 **artifacts,
             }
@@ -55,8 +74,8 @@ class ParserService:
                 "output_dir": str(output_dir.resolve()),
             }
 
-    def parse_many(self, file_paths: list[str], language: str = "ch", backend: str | None = None) -> list[dict]:
-        return [self.parse_one(path, language=language, backend=backend) for path in file_paths]
+    def parse_many(self, file_paths: list[str], tier: str = "auto", backend: str | None = None) -> list[dict]:
+        return [self.parse_one(path, tier=tier, backend=backend) for path in file_paths]
 
     def read_text(
         self,

@@ -1,6 +1,6 @@
 services:
   mineru-api:
-    image: ${MINERU_IMAGE:-document-parser-mineru:3.2.3}
+    image: ${MINERU_IMAGE:-document-parser-mineru:4.0.7}
     build:
       context: .
       dockerfile: Dockerfile
@@ -13,16 +13,17 @@ services:
       - "${TAILSCALE_IP:?Set the server Tailscale IPv4 address}:8000:8000"
     environment:
       MINERU_MODEL_SOURCE: ${MINERU_MODEL_SOURCE:-modelscope}
-      MINERU_API_TASK_RETENTION_SECONDS: ${MINERU_API_TASK_RETENTION_SECONDS:-86400}
+      MINERU_TIER: ${MINERU_TIER:-standard}
+      MINERU_API_KEY: ${MINERU_API_KEY:-}
     volumes:
-      - mineru-model-cache:/root/.cache
+      - mineru-model-cache:/root/.mineru
       - mineru-output:/app/output
     healthcheck:
       test:
         - CMD
         - python
         - -c
-        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"
+        - "import os, urllib.request; key=os.getenv('MINERU_API_KEY'); headers={'Authorization':'Bearer '+key} if key else {}; request=urllib.request.Request('http://127.0.0.1:8000/v1/health', headers=headers); urllib.request.urlopen(request, timeout=5)"
       interval: 30s
       timeout: 10s
       retries: 5

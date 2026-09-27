@@ -30,7 +30,7 @@ def build_service(env: Mapping[str, str] | None = None) -> ParserService:
         backends["remote"] = RemoteMinerUBackend(
             remote_url,
             token=values.get("DOCUMENT_PARSER_REMOTE_TOKEN") or None,
-            poll_interval=float(values.get("DOCUMENT_PARSER_POLL_INTERVAL", "2")),
+            poll_interval=float(values.get("DOCUMENT_PARSER_POLL_INTERVAL", "3")),
             max_wait_seconds=float(values.get("DOCUMENT_PARSER_MAX_WAIT_SECONDS", "1800")),
         )
     if backend_name == "remote" and "remote" not in backends:
@@ -47,20 +47,20 @@ def create_server(service: ParserService | None = None) -> FastMCP:
     @server.tool()
     def parse_document(
         file_path: str,
-        language: str = "ch",
+        tier: Literal["auto", "flash", "basic", "standard", "advanced"] = "auto",
         backend: Literal["local", "remote"] | None = None,
     ) -> dict:
-        """解析单个 PDF、图片、DOCX、PPTX 或 XLSX，并返回产物路径和短预览。"""
-        return parser.parse_one(file_path, language=language, backend=backend)
+        """解析 MinerU 4 支持的单个文档，并返回产物路径和短预览。"""
+        return parser.parse_one(file_path, tier=tier, backend=backend)
 
     @server.tool()
     def parse_documents(
         file_paths: list[str],
-        language: str = "ch",
+        tier: Literal["auto", "flash", "basic", "standard", "advanced"] = "auto",
         backend: Literal["local", "remote"] | None = None,
     ) -> list[dict]:
         """按给定顺序逐个解析多个文件；单个文件失败不会中止后续处理。"""
-        return parser.parse_many(file_paths, language=language, backend=backend)
+        return parser.parse_many(file_paths, tier=tier, backend=backend)
 
     @server.tool()
     def read_parsed_text(

@@ -1,6 +1,6 @@
 # Yushu Document Parser
 
-把 PDF、图片和 Office 文件解析能力包装成 **Agent Skill + MCP 服务**，让 Codex、WorkBuddy 等 MCP 客户端可以调用 MinerU 提取文档正文，并在本机保存 Markdown、结构化 JSON 和文档中的图片。
+把 PDF、图片、Office、OpenDocument、EPUB、OFD、HTML/MHTML 等文档解析能力包装成 **Agent Skill + MCP 服务**，让 Codex、WorkBuddy 等 MCP 客户端可以调用 MinerU 4.0.7 提取正文，并在本机保存 Markdown、结构化 JSON 和文档中的图片。
 
 项目面向 Windows 桌面端，支持两种明确选择的解析方式：本机运行 MinerU，或把文件发送到用户自己部署在私网中的 MinerU API。两种方式使用相同的 MCP 工具和产物格式。
 
@@ -23,13 +23,13 @@
 
 ## 来源与项目关系
 
-本仓库中的 MCP 服务、Skill、Windows 安装器和 Docker Compose 模板，是围绕项目原有的 MinerU 文档解析工作流整理出的独立适配代码。**实际执行 PDF、图片和 Office 内容识别的引擎来自 OpenDataLab 官方 [MinerU 项目](https://github.com/opendatalab/MinerU)**，当前安装器和容器模板固定安装 `mineru[pipeline]==3.2.3`。
+本仓库中的 MCP 服务、Skill、Windows 安装器和 Docker Compose 模板，是围绕项目原有的 MinerU 文档解析工作流整理出的独立适配代码。**实际执行 PDF、图片和 Office 内容识别的引擎来自 OpenDataLab 官方 [MinerU 项目](https://github.com/opendatalab/MinerU)**，当前安装器和容器模板固定安装 MinerU 4.0.7。
 
-本仓库不是 MinerU 的 fork，也不复制或重新分发 MinerU 源码、模型权重或运行环境。运行本项目时，安装器或 Docker 构建过程会单独从上游包源安装 MinerU；模型在首次解析时按 MinerU 配置下载。这里新增的代码负责把 MinerU 的 CLI/API 接入 MCP 工具，管理输入、产物目录、远程任务和客户端配置。
+本仓库不是 MinerU 的 fork，也不复制或重新分发 MinerU 源码、模型权重或运行环境。运行本项目时，安装器或 Docker 构建过程会单独从上游包源安装 MinerU；模型在首次解析时按 MinerU 配置下载。这里新增的代码负责把 MinerU 的 Python SDK/V1 API 接入 MCP 工具，管理输入、产物目录、远程任务和客户端配置。
 
 | 组成 | 来源 | 本仓库是否包含 |
 | --- | --- | --- |
-| 文档版面分析、OCR 与内容提取引擎 | [OpenDataLab/MinerU](https://github.com/opendatalab/MinerU)，固定版本 3.2.3 | 否，安装时单独获取 |
+| 文档版面分析、OCR 与内容提取引擎 | [OpenDataLab/MinerU](https://github.com/opendatalab/MinerU)，固定版本 4.0.7 | 否，安装时单独获取 |
 | MCP 适配器与三项工具 | 本仓库 | 是 |
 | 给 AI 的工具选择和结果读取指引 | 本仓库 `SKILL.md` | 是 |
 | Windows 安装与 Codex/WorkBuddy 配置合并 | 本仓库 `scripts/install.ps1` 和 Python 模块 | 是 |
@@ -44,14 +44,18 @@
 | --- | --- |
 | PDF | `.pdf` |
 | 图片 | `.png`、`.jpg`、`.jpeg`、`.webp`、`.bmp`、`.tif`、`.tiff` |
-| Word | `.docx` |
-| PowerPoint | `.pptx` |
-| Excel | `.xlsx` |
+| Word | `.doc`、`.docx` |
+| PowerPoint | `.ppt`、`.pptx` |
+| Excel | `.xls`、`.xlsx` |
+| 其他文档 | `.rtf`、`.odt`、`.ods`、`.odp`、`.epub`、`.ofd` |
+| 网页与表格数据 | `.html`、`.htm`、`.mhtml`、`.mht`、`.csv`、`.tsv` |
+
+MinerU 4.0.7 新增 MHTML/MHT 网页归档解析。`.txt`、`.md` 等纯文本本身已可直接阅读，不需要调用解析工具。
 
 ### 能做什么
 
 - 解析单个文件，或按给定顺序逐个解析多个文件。
-- 提取文本和版面结构，保存 Markdown 与 `content_list.json`。
+- 提取文本和版面结构，保存 Markdown、MinerU 4 `structured_content.json`、`middle_json.json` 和 ZIP 产物中的图片。
 - 保存解析结果中包含的图片文件。
 - 分段读取解析后的 Markdown，或在确有需要时读取全文。
 - 将产物保存在本机；重复解析不会覆盖已有结果，而会分配新目录。
@@ -72,10 +76,10 @@
 flowchart LR
     A[Codex / WorkBuddy] --> B[document-parser Skill]
     B --> C[本机 MCP 服务]
-    C -->|local| D[本机 MinerU 3.2.3]
-    C -->|remote：显式配置| E[用户私网中的 MinerU API]
+    C -->|local| D[本机 MinerU 4.0.7 SDK]
+    C -->|remote：显式配置| E[用户私网中的 MinerU V1 API]
     D --> F[本机产物目录]
-    E -->|下载 ZIP 并解压| F
+    E -->|下载 V1 ZIP 并解压| F
     F --> G[read_parsed_text 读取 Markdown]
 ```
 
@@ -98,7 +102,7 @@ Skill 会提醒 AI：先解析，再根据返回的路径读取正文；长文�
 | 参数 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
 | `file_path` | 字符串 | 必填 | 本机可访问的文件路径；支持中文和空格路径 |
-| `language` | 字符串 | `ch` | 文档语言提示；常用值为中文 `ch`、英文 `en` |
+| `tier` | `auto` / `flash` / `basic` / `standard` / `advanced` | `auto` | `auto` 对 PDF/图片使用 standard，其他原生格式使用 flash；原生格式只能使用 flash |
 | `backend` | `local` / `remote` | 安装配置的后端 | 可对单次调用显式选择后端 |
 
 ### `parse_documents`
@@ -108,7 +112,7 @@ Skill 会提醒 AI：先解析，再根据返回的路径读取正文；长文�
 | 参数 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
 | `file_paths` | 字符串数组 | 必填 | 有序的本机文件路径列表 |
-| `language` | 字符串 | `ch` | 语言提示 |
+| `tier` | `auto` / `flash` / `basic` / `standard` / `advanced` | `auto` | 每个文件按扩展名自动选择档位，或统一指定档位 |
 | `backend` | `local` / `remote` | 安装配置的后端 | 整个批次统一使用所选后端 |
 
 ### `read_parsed_text`
@@ -127,7 +131,7 @@ Skill 会提醒 AI：先解析，再根据返回的路径读取正文；长文�
 ```json
 {
   "file_path": "D:/资料/年度报告.pdf",
-  "language": "ch",
+  "tier": "auto",
   "backend": "local"
 }
 ```
@@ -146,21 +150,22 @@ AI 客户端应先查看解析工具返回值中的 `markdown_path`，再将该�
 ```text
 output/
   年度报告/
-    年度报告.md
-    年度报告_content_list.json
+    markdown.md
+    structured_content.json
+    middle_json.json
     images/
       image_1.png
 ```
 
-目录和文件的实际命名以工具返回的绝对路径为准。重名输入或重跑会使用递增目录名，保留已有产物。`content_list.json` 保存 MinerU 输出的内容块结构；图片被提取到 `images/`。
+目录和文件的实际命名以工具返回的绝对路径为准。重名输入或重跑会使用递增目录名，保留已有产物。`structured_content.json` 保存面向下游工具的结构化内容，`middle_json.json` 保存 MinerU 4 中间文档结构；图片被提取到 `images/`。
 
 ## Windows 安装
 
 ### 环境要求
 
 - Windows 10/11。
-- Python 3.11 或 3.12，并能在 PowerShell 中运行 `python`。
-- 本机后端需要足够的磁盘空间存放 MinerU 依赖和模型。NVIDIA GPU 可加速解析；没有检测到可用 GPU 时，安装器会询问是否继续安装 CPU 版，CPU 解析通常慢很多。
+- Python 3.10–3.14，并能在 PowerShell 中运行 `python`。
+- 本机后端需要足够的磁盘空间存放 MinerU 依赖和模型。NVIDIA GPU 可加速 PDF/图片的 standard/advanced 档；没有检测到可用 GPU 时，安装器会询问是否继续安装 CPU 版，CPU 解析通常慢很多。
 - 云端后端只要求本机 MCP 的 Python 依赖与网络可达，不需要在 Windows 安装 MinerU 引擎或模型。
 
 ### 本机解析模式
@@ -179,15 +184,17 @@ Set-ExecutionPolicy -Scope Process Bypass
 
 同时它会备份并合并 Codex 和 WorkBuddy 的 MCP 配置，不覆盖已有的其他 MCP 服务；重复运行会更新本服务配置，不会重复添加。安装完成后重启两个客户端以加载工具和 Skill。MinerU 模型在首次解析时下载。
 
+从本仓库 3.2.3 适配版升级时，可以重新运行此安装器：它会备份并合并客户端配置、更新 MCP 程序和 Skill，并将本机 MinerU 固定更新到 4.0.7。4.x 的模型缓存与配置和旧版不同，首次解析可能需要重新下载模型。
+
 ### 使用自有云端解析
 
 如果已按[云端部署](#云端部署)启动 API：
 
 ```powershell
-.\scripts\install.ps1 -Backend remote -RemoteUrl "http://100.64.0.10:8000"
+.\scripts\install.ps1 -Backend remote -RemoteUrl "http://100.64.0.10:8000" -RemoteToken "与服务器相同的 API 密钥"
 ```
 
-也可以使用 Tailscale MagicDNS 地址，例如 `http://mineru.tailnet-name.ts.net:8000`。安装器会检查目标属于 Tailscale 或常见私网地址。remote 模式不安装本机 MinerU；选择 remote 表示所选文件会上传到所配置的服务器进行解析。
+也可以使用 Tailscale MagicDNS 地址，例如 `http://mineru.tailnet-name.ts.net:8000`。安装器会检查目标属于 Tailscale 或常见私网地址。remote 模式不安装本机 MinerU；选择 remote 表示所选文件会上传到所配置的服务器进行解析。若云端 `.env` 设置了 `MINERU_API_KEY`，客户端要通过 `-RemoteToken` 配置同一密钥。
 
 ## 选择本机或云端后端
 
@@ -196,7 +203,7 @@ Set-ExecutionPolicy -Scope Process Bypass
 | `local`（默认） | 当前 Windows 电脑 | 否 | 文件需要留在本机；有足够本机算力和磁盘 |
 | `remote`（需显式配置） | 用户自己的 MinerU API 服务器 | 是，文件会上传到该服务器 | 希望使用自有服务器的 GPU 或集中管理模型 |
 
-安装选择会写入 MCP 配置中的后端环境变量。单次工具调用也可以显式指定 `backend`。如果远程 URL 未设置或服务报错，工具只返回错误，不自动上传到其他地方或切回本机。
+安装选择会写入 MCP 配置中的后端环境变量。单次工具调用也可以显式指定 `backend`。MinerU 4 使用 `tier` 选择解析质量：默认 `auto` 对 PDF/图片选 standard，对原生文档选 flash。V4 不再使用旧版 `language` 参数，OCR 语言由引擎自动处理。如果远程 URL 未设置或服务报错，工具只返回错误，不自动上传到其他地方或切回本机。
 
 MCP 服务识别以下环境变量，可用于手动配置或排障：
 
@@ -204,9 +211,9 @@ MCP 服务识别以下环境变量，可用于手动配置或排障：
 | --- | --- |
 | `DOCUMENT_PARSER_BACKEND` | `local` 或 `remote`；默认 `local` |
 | `DOCUMENT_PARSER_REMOTE_URL` | 远程 MinerU API 基础地址，例如 `http://100.64.0.10:8000` |
-| `DOCUMENT_PARSER_REMOTE_TOKEN` | 可选 Bearer Token；服务器必须配置对应的鉴权中间件才会校验它 |
+| `DOCUMENT_PARSER_REMOTE_TOKEN` | 可选 Bearer Token；与云端 `.env` 中的 `MINERU_API_KEY` 一致 |
 | `DOCUMENT_PARSER_OUTPUT_DIR` | 本机产物根目录 |
-| `DOCUMENT_PARSER_POLL_INTERVAL` | 远程任务轮询间隔秒数，默认 `2` |
+| `DOCUMENT_PARSER_POLL_INTERVAL` | 远程任务轮询间隔秒数，默认 `3` |
 | `DOCUMENT_PARSER_MAX_WAIT_SECONDS` | 远程任务最大等待时间，默认 `1800` |
 
 ## 云端部署
@@ -221,11 +228,13 @@ docker compose build
 docker compose up -d
 ```
 
-首次构建会在镜像中安装 `mineru[pipeline]==3.2.3`；第一次解析时下载模型。可以从已加入 tailnet 的设备检查健康状态：
+首次构建默认安装 MinerU 4.0.7 CPU 基础运行时；启用 GPU 覆盖配置时安装 `mineru[full]==4.0.7`。第一次解析时下载模型。可以从已加入 tailnet 的设备检查健康状态：
 
 ```bash
-curl http://100.64.0.10:8000/health
+curl http://100.64.0.10:8000/v1/health
 ```
+
+可在 `cloud/.env` 中设置 `MINERU_API_KEY` 启用 V1 API bearer key；Windows 客户端安装时使用相同的 `-RemoteToken`。服务仍绑定到 Tailscale 地址，不要映射到公网接口。
 
 ### 可选 GPU
 
@@ -243,7 +252,7 @@ GPU 驱动、CUDA wheel 与服务器配置必须匹配；仓库不预设某个�
 - 本机后端由本机 MCP 进程读取传入路径并调用本机 MinerU；不把文件上传到本项目维护的服务器。
 - 远程后端会把完整输入文件发送到 `DOCUMENT_PARSER_REMOTE_URL` 指向的 MinerU API，并把解析 ZIP 下载回本机。该服务器由使用者自行选择、部署和管理。
 - Docker Compose 将 API 端口绑定到 `.env` 中的 `TAILSCALE_IP`，模板不应改为 `0.0.0.0`，也不要把 API 暴露在公网或公开反向代理之后。
-- MinerU API 模板默认没有身份认证，访问控制依赖 Tailscale 私网与 ACL。只允许需要的设备访问 TCP 8000；如需额外鉴权，应自行在私网入口配置并确保 MCP 与服务器配置一致。
+- API key 可以通过 `MINERU_API_KEY` 启用；无 key 时，访问控制依赖 Tailscale 私网与 ACL。两种配置都只应允许需要的设备访问 TCP 8000，不要把服务公开到公网。
 - 远程任务及模型的保留、清理策略由 MinerU API 和服务器卷配置决定。部署者应自行设置访问控制、磁盘容量和数据保留周期。
 - 仓库不包含用户文档、模型缓存、解析产物或其他项目资料；`.env` 等本地配置由 `.gitignore` 排除。
 
@@ -275,7 +284,7 @@ MinerU 可能需要首次下载模型。下载速度取决于模型源和网络�
 
 ## 开发与测试
 
-需要 Python 3.11/3.12 和 `uv`：
+需要 Python 3.10–3.14 和 `uv`：
 
 ```powershell
 uv sync --no-install-project
@@ -283,7 +292,7 @@ $env:PYTHONPATH = "src"
 uv run --no-sync python -m unittest discover -s tests -v
 ```
 
-测试覆盖本机后端命令构造、远程任务上传和轮询、ZIP 下载与路径安全校验、中文及空格路径、重复输出目录、批处理失败隔离、客户端配置备份与合并、Skill 工具契约和云端模板。远程接口测试使用模拟 HTTP 传输；它不需要真实服务器。端到端运行 MinerU 仍需要安装上游引擎并下载模型。
+测试覆盖 MinerU SDK 适配、V1 上传和任务轮询、跨域对象存储凭证隔离、ZIP 下载与路径安全校验、原生文件档位选择、中文及空格路径、重复输出目录、批处理失败隔离、客户端配置备份与合并、Skill 工具契约和云端模板。远程接口测试使用模拟 HTTP 传输；它不需要真实服务器。端到端运行 MinerU 仍需要安装上游引擎并下载模型。
 
 ## 许可与致谢
 

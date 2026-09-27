@@ -35,6 +35,7 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(service.default_backend, "remote")
         self.assertIsInstance(service.backends["local"], LocalMinerUBackend)
         self.assertIsInstance(service.backends["remote"], RemoteMinerUBackend)
+        self.assertEqual(service.backends["remote"].token, "secret")
 
     def test_server_exposes_the_three_skill_tool_names(self):
         server = create_server(build_service({}))
@@ -43,6 +44,12 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(
             {tool.name for tool in tools},
             {"parse_document", "parse_documents", "read_parsed_text"},
+        )
+        parse_tool = next(tool for tool in tools if tool.name == "parse_document")
+        self.assertEqual(parse_tool.inputSchema["properties"]["tier"]["default"], "auto")
+        self.assertEqual(
+            parse_tool.inputSchema["properties"]["tier"]["enum"],
+            ["auto", "flash", "basic", "standard", "advanced"],
         )
 
     def test_stdio_protocol_client_can_initialize_and_discover_tools(self):

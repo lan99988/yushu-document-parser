@@ -10,6 +10,9 @@ class SkillContractTests(unittest.TestCase):
 
         self.assertIn("no previous parse result", skill)
         self.assertIn("first call `parse_document`", skill)
+        self.assertIn("MHTML/MHT", skill)
+        self.assertIn("structured_content_path", skill)
+        self.assertIn("`tier`", skill)
 
 
 if __name__ == "__main__":
