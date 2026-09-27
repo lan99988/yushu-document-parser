@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling>=1.24,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "document-parser-mcp"
+version = "0.1.0"
+description = "Local MCP adapter and Agent Skill for MinerU document parsing"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+license = { file = "LICENSE" }
+dependencies = [
+  "httpx>=0.27,<1",
+  "mcp>=1.9,<2",
+  "tomlkit>=0.13,<1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/document_parser_mcp"]
+
+[tool.unittest]
+start-directory = "tests"
+
+[tool.uv]
+package = false

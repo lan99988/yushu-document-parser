@@ -1,0 +1,33 @@
+services:
+  mineru-api:
+    image: ${MINERU_IMAGE:-document-parser-mineru:3.2.3}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        TORCH_INDEX_URL: ${TORCH_INDEX_URL:-https://download.pytorch.org/whl/cpu}
+    restart: unless-stopped
+    ports:
+      # Bind the host port only to its Tailscale address. Do not change this to
+      # 0.0.0.0 or a public interface.
+      - "${TAILSCALE_IP:?Set the server Tailscale IPv4 address}:8000:8000"
+    environment:
+      MINERU_MODEL_SOURCE: ${MINERU_MODEL_SOURCE:-modelscope}
+      MINERU_API_TASK_RETENTION_SECONDS: ${MINERU_API_TASK_RETENTION_SECONDS:-86400}
+    volumes:
+      - mineru-model-cache:/root/.cache
+      - mineru-output:/app/output
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 5m
+
+volumes:
+  mineru-model-cache:
+  mineru-output:
