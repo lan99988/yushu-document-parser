@@ -33,6 +33,17 @@ class CloudTemplateTests(unittest.TestCase):
         self.assertIn('"DOCUMENT_PARSER_REMOTE_TOKEN"', installer)
         self.assertNotIn("mineru[pipeline]==3.2.3", installer)
 
+    def test_windows_gpu_installer_restores_resolved_cuda_wheels_after_mineru(self):
+        installer = (Path(__file__).parents[1] / "scripts" / "install.ps1").read_text(encoding="utf-8")
+
+        mineru_install = installer.index("pip install --python $venvPython $mineruPackage")
+        cuda_wheel_install = installer.index(
+            "pip install --python $venvPython --index-url $torchIndex --no-deps --reinstall"
+        )
+        self.assertLess(mineru_install, cuda_wheel_install)
+        self.assertIn('"https://download.pytorch.org/whl/cu126"', installer)
+        self.assertIn("m.version('torch').split('+')[0]", installer)
+
 
 if __name__ == "__main__":
     unittest.main()

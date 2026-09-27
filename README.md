@@ -166,6 +166,7 @@ output/
 - Windows 10/11。
 - Python 3.10–3.14，并能在 PowerShell 中运行 `python`。
 - 本机后端需要足够的磁盘空间存放 MinerU 依赖和模型。NVIDIA GPU 可加速 PDF/图片的 standard/advanced 档；没有检测到可用 GPU 时，安装器会询问是否继续安装 CPU 版，CPU 解析通常慢很多。
+- Windows GPU 安装默认使用 PyTorch 官方 CUDA 12.6 wheel 源，并沿用 MinerU 依赖解析出的兼容 PyTorch 版本。若本机 CUDA wheel 源不同，可通过 `-TorchIndexUrl` 指定，例如 `https://download.pytorch.org/whl/cu128`。
 - 云端后端只要求本机 MCP 的 Python 依赖与网络可达，不需要在 Windows 安装 MinerU 引擎或模型。
 
 ### 本机解析模式
@@ -183,6 +184,8 @@ Set-ExecutionPolicy -Scope Process Bypass
 - `%USERPROFILE%\.workbuddy\skills\document-parser\SKILL.md`
 
 同时它会备份并合并 Codex 和 WorkBuddy 的 MCP 配置，不覆盖已有的其他 MCP 服务；重复运行会更新本服务配置，不会重复添加。安装完成后重启两个客户端以加载工具和 Skill。MinerU 模型在首次解析时下载。
+
+GPU 安装会在安装 MinerU 依赖后，从配置的 PyTorch wheel 源重新安装匹配的 CUDA wheel，避免解析 MinerU 依赖时被替换成 CPU wheel。未检测到 GPU 并选择 CPU 模式时，安装 MinerU CPU 基础运行时。
 
 从本仓库 3.2.3 适配版升级时，可以重新运行此安装器：它会备份并合并客户端配置、更新 MCP 程序和 Skill，并将本机 MinerU 固定更新到 4.0.7。4.x 的模型缓存与配置和旧版不同，首次解析可能需要重新下载模型。
 

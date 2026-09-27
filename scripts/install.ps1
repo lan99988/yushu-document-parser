@@ -128,22 +128,6 @@ if ($uv) {
 if ($LASTEXITCODE -ne 0) { throw "安装文档解析 MCP 失败。" }
 
 if ($Backend -eq "local") {
-    if ($cpuOnly) {
-        if ($uv) {
-            & $uv.Source pip install --python $venvPython --index-url "https://download.pytorch.org/whl/cpu" --extra-index-url "https://pypi.org/simple" "torch>=2.6,<3" torchvision
-        } else {
-            & $venvPython -m pip install --index-url "https://download.pytorch.org/whl/cpu" --extra-index-url "https://pypi.org/simple" "torch>=2.6,<3" torchvision
-        }
-        if ($LASTEXITCODE -ne 0) { throw "安装 CPU 版 PyTorch 失败。" }
-    }
-    if ($TorchIndexUrl) {
-        if ($uv) {
-            & $uv.Source pip install --python $venvPython --index-url $TorchIndexUrl --extra-index-url "https://pypi.org/simple" "torch>=2.6,<3" torchvision
-        } else {
-            & $venvPython -m pip install --index-url $TorchIndexUrl --extra-index-url "https://pypi.org/simple" "torch>=2.6,<3" torchvision
-        }
-        if ($LASTEXITCODE -ne 0) { throw "安装指定 PyTorch wheel 失败。" }
-    }
     $mineruPackage = if ($cpuOnly) { "mineru==4.0.7" } else { "mineru[full]==4.0.7" }
     if ($uv) {
         & $uv.Source pip install --python $venvPython $mineruPackage
@@ -151,6 +135,25 @@ if ($Backend -eq "local") {
         & $venvPython -m pip install $mineruPackage
     }
     if ($LASTEXITCODE -ne 0) { throw "安装 MinerU 4.0.7 失败。" }
+
+    if (-not $cpuOnly) {
+        # MinerU's full extra can resolve the CPU wheel from PyPI and replace a
+        # CUDA wheel. Install MinerU first, then reinstall the exact compatible
+        # versions from one PyTorch index without dependency resolution.
+        $torchVersion = (& $venvPython -c "import importlib.metadata as m; print(m.version('torch').split('+')[0])" 2>$null | Out-String).Trim()
+        $torchvisionVersion = (& $venvPython -c "import importlib.metadata as m; print(m.version('torchvision').split('+')[0])" 2>$null | Out-String).Trim()
+        if (-not $torchVersion -or -not $torchvisionVersion) {
+            throw "MinerU 安装后未能读取 PyTorch 版本。"
+        }
+
+        $torchIndex = if ($TorchIndexUrl) { $TorchIndexUrl.TrimEnd("/") } else { "https://download.pytorch.org/whl/cu126" }
+        if ($uv) {
+            & $uv.Source pip install --python $venvPython --index-url $torchIndex --no-deps --reinstall "torch==$torchVersion" "torchvision==$torchvisionVersion"
+        } else {
+            & $venvPython -m pip install --index-url $torchIndex --no-deps --force-reinstall "torch==$torchVersion" "torchvision==$torchvisionVersion"
+        }
+        if ($LASTEXITCODE -ne 0) { throw "从 PyTorch 索引安装兼容版本失败：$torchIndex" }
+    }
 }
 
 $envConfig = [ordered]@{
