@@ -128,13 +128,23 @@ if ($uv) {
 if ($LASTEXITCODE -ne 0) { throw "安装文档解析 MCP 失败。" }
 
 if ($Backend -eq "local") {
-    $mineruPackage = if ($cpuOnly) { "mineru==4.0.7" } else { "mineru[full]==4.0.7" }
+    $vendorDirectory = Join-Path $InstallRoot 'vendor\mineru-4.0.7'
+    New-Item -ItemType Directory -Force -Path $vendorDirectory | Out-Null
+    $mineruWheelName = 'mineru-4.0.7-py3-none-any.whl'
+    Copy-Item (Join-Path $projectRoot "vendor\mineru-4.0.7\$mineruWheelName") $vendorDirectory -Force
+    $mineruWheel = Join-Path $vendorDirectory $mineruWheelName
+    $mineruWheelUri = ([System.Uri]$mineruWheel).AbsoluteUri
+    $mineruPackage = if ($cpuOnly) {
+        "mineru @ $mineruWheelUri"
+    } else {
+        "mineru[full] @ $mineruWheelUri"
+    }
     if ($uv) {
         & $uv.Source pip install --python $venvPython $mineruPackage
     } else {
         & $venvPython -m pip install $mineruPackage
     }
-    if ($LASTEXITCODE -ne 0) { throw "安装 MinerU 4.0.7 失败。" }
+    if ($LASTEXITCODE -ne 0) { throw "安装随仓库提供的 MinerU 4.0.7 wheel 失败。" }
 
     if (-not $cpuOnly) {
         # MinerU's full extra can resolve the CPU wheel from PyPI and replace a
@@ -170,7 +180,7 @@ $configArgs = @(
     "-m", "document_parser_mcp.client_config",
     "--codex-config", $CodexConfigPath,
     "--workbuddy-config", $WorkBuddyConfigPath,
-    "--server-name", "document-parser",
+    "--server-name", "yushu-document-parser",
     "--command", $venvPython,
     "--args-json", $mcpArgsJson,
     "--env-json", $mcpEnvJson
@@ -184,7 +194,7 @@ foreach ($skillRoot in @($CodexSkillsRoot, $WorkBuddySkillsRoot)) {
     Copy-Item (Join-Path $projectRoot "SKILL.md") -Destination (Join-Path $skillDirectory "SKILL.md") -Force
 }
 
-Write-Host "安装完成。请重启 Codex 和 WorkBuddy 以加载 document-parser MCP 与 Skill。"
+Write-Host "安装完成。请重启 Codex 和 WorkBuddy 以加载 yushu-document-parser MCP 与 Skill。"
 Write-Host "解析产物目录：$OutputRoot"
 Write-Host "当前后端：$Backend"
 if ($Backend -eq "local") {

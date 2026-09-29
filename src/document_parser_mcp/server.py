@@ -42,7 +42,7 @@ def build_service(env: Mapping[str, str] | None = None) -> ParserService:
 
 def create_server(service: ParserService | None = None) -> FastMCP:
     parser = service or build_service()
-    server = FastMCP("document-parser")
+    server = FastMCP("yushu-document-parser")
 
     @server.tool()
     def parse_document(

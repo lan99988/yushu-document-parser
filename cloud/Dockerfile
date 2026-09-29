@@ -16,12 +16,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # override selects [full] and a CUDA-compatible PyTorch wheel index.
 ARG MINERU_EXTRA=
 ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
+COPY vendor/mineru-4.0.7/mineru-4.0.7-py3-none-any.whl /opt/mineru-4.0.7-py3-none-any.whl
 RUN if [ -n "${MINERU_EXTRA}" ]; then \
       pip install --index-url "${TORCH_INDEX_URL}" --extra-index-url https://pypi.org/simple "torch>=2.6,<3" torchvision; \
     fi && \
-    pip install "mineru${MINERU_EXTRA}==4.0.7"
+    pip install "mineru${MINERU_EXTRA} @ file:///opt/mineru-4.0.7-py3-none-any.whl"
 
-COPY entrypoint.sh /usr/local/bin/document-parser-entrypoint
+COPY cloud/entrypoint.sh /usr/local/bin/document-parser-entrypoint
 RUN chmod 0755 /usr/local/bin/document-parser-entrypoint
 
 WORKDIR /app

@@ -23,17 +23,17 @@
 
 ## 来源与项目关系
 
-本仓库中的 MCP 服务、Skill、Windows 安装器和 Docker Compose 模板，是围绕项目原有的 MinerU 文档解析工作流整理出的独立适配代码。**实际执行 PDF、图片和 Office 内容识别的引擎来自 OpenDataLab 官方 [MinerU 项目](https://github.com/opendatalab/MinerU)**，当前安装器和容器模板固定安装 MinerU 4.0.7。
+本仓库中的 MCP 服务、Skill、Windows 安装器和 Docker Compose 模板，是围绕项目原有的 MinerU 文档解析工作流整理出的独立适配代码。**实际执行 PDF、图片和 Office 内容识别的引擎来自 OpenDataLab 官方 [MinerU 项目](https://github.com/opendatalab/MinerU)**。仓库固定包含 MinerU 4.0.7 官方 PyPI 发布 wheel、从该 wheel 解出的可读引擎源码、发行元数据及上游许可。
 
-本仓库不是 MinerU 的 fork，也不复制或重新分发 MinerU 源码、模型权重或运行环境。运行本项目时，安装器或 Docker 构建过程会单独从上游包源安装 MinerU；模型在首次解析时按 MinerU 配置下载。这里新增的代码负责把 MinerU 的 Python SDK/V1 API 接入 MCP 工具，管理输入、产物目录、远程任务和客户端配置。
+本仓库不是 MinerU 完整的 Git 仓库或官方 fork。`vendor/mineru-4.0.7/` 中的引擎文件来自 OpenDataLab 发布的 `mineru-4.0.7-py3-none-any.whl`，并保留原始 wheel 与 SHA-256 来源记录；本机安装器和 Docker 构建从仓库内 wheel 安装相同的引擎版本。wheel 所需的其他 Python 依赖仍由 pip/uv 获取，模型在首次解析时按 MinerU 配置下载。模型权重、运行环境、用户文件和解析产物不放入仓库。这里的独立适配代码负责把 MinerU 的 Python SDK/V1 API 接入 MCP 工具，管理输入、产物目录、远程任务和客户端配置。
 
 | 组成 | 来源 | 本仓库是否包含 |
 | --- | --- | --- |
-| 文档版面分析、OCR 与内容提取引擎 | [OpenDataLab/MinerU](https://github.com/opendatalab/MinerU)，固定版本 4.0.7 | 否，安装时单独获取 |
+| 文档版面分析、OCR 与内容提取引擎 | [OpenDataLab/MinerU](https://github.com/opendatalab/MinerU)，官方 PyPI wheel 4.0.7 | 是，源码和原始 wheel 位于 `vendor/mineru-4.0.7/` |
 | MCP 适配器与三项工具 | 本仓库 | 是 |
 | 给 AI 的工具选择和结果读取指引 | 本仓库 `SKILL.md` | 是 |
 | Windows 安装与 Codex/WorkBuddy 配置合并 | 本仓库 `scripts/install.ps1` 和 Python 模块 | 是 |
-| 云端 API 容器模板 | 本仓库 `cloud/`，容器内安装 MinerU | 是模板，不含模型 |
+| 云端 API 容器模板 | 本仓库 `cloud/`，从仓库内 wheel 安装 MinerU | 是模板，不含模型 |
 | 用户文件、解析结果和模型缓存 | 由用户的运行环境生成 | 不纳入仓库 |
 
 ## 能力范围
@@ -93,7 +93,7 @@ Skill 会提醒 AI：先解析，再根据返回的路径读取正文；长文�
 
 ## MCP 工具
 
-服务通过标准输入/输出（stdio）启动，MCP server 名称为 `document-parser`。安装器负责为 Codex 和 WorkBuddy 注册服务。
+服务通过标准输入/输出（stdio）启动，MCP server 名称及 Codex/WorkBuddy 配置键为 `yushu-document-parser`。三个工具名和 Skill 名称仍为 `parse_document`、`parse_documents`、`read_parsed_text` 与 `document-parser`。
 
 ### `parse_document`
 
@@ -183,11 +183,11 @@ Set-ExecutionPolicy -Scope Process Bypass
 - `%USERPROFILE%\.codex\skills\document-parser\SKILL.md`
 - `%USERPROFILE%\.workbuddy\skills\document-parser\SKILL.md`
 
-同时它会备份并合并 Codex 和 WorkBuddy 的 MCP 配置，不覆盖已有的其他 MCP 服务；重复运行会更新本服务配置，不会重复添加。安装完成后重启两个客户端以加载工具和 Skill。MinerU 模型在首次解析时下载。
+同时它会备份并合并 Codex 和 WorkBuddy 的 MCP 配置，不覆盖已有的其他 MCP 服务；若旧 `document-parser` 配置确实启动本项目模块，安装器会在备份后迁移为 `yushu-document-parser`，同名的其他服务会保留。重复运行会更新本服务配置，不会重复添加。安装完成后重启两个客户端以加载工具和 Skill。MinerU 4.0.7 wheel 随仓库提供；其 Python 依赖正常下载，模型在首次解析时下载。
 
 GPU 安装会在安装 MinerU 依赖后，从配置的 PyTorch wheel 源重新安装匹配的 CUDA wheel，避免解析 MinerU 依赖时被替换成 CPU wheel。未检测到 GPU 并选择 CPU 模式时，安装 MinerU CPU 基础运行时。
 
-从本仓库 3.2.3 适配版升级时，可以重新运行此安装器：它会备份并合并客户端配置、更新 MCP 程序和 Skill，并将本机 MinerU 固定更新到 4.0.7。4.x 的模型缓存与配置和旧版不同，首次解析可能需要重新下载模型。
+从本仓库 3.2.3 适配版升级时，可以重新运行此安装器：它会备份并合并客户端配置、迁移 MCP 名称、更新 MCP 程序和 Skill，并从仓库内的官方 wheel 安装 MinerU 4.0.7。4.x 的模型缓存与配置和旧版不同，首次解析可能需要重新下载模型。
 
 ### 使用自有云端解析
 
@@ -231,7 +231,7 @@ docker compose build
 docker compose up -d
 ```
 
-首次构建默认安装 MinerU 4.0.7 CPU 基础运行时；启用 GPU 覆盖配置时安装 `mineru[full]==4.0.7`。第一次解析时下载模型。可以从已加入 tailnet 的设备检查健康状态：
+首次构建从仓库内随附的 MinerU 4.0.7 官方 wheel 安装 CPU 基础运行时；启用 GPU 覆盖配置时选择 `[full]` 依赖。其他 Python 依赖仍从包源获取，第一次解析时下载模型。可以从已加入 tailnet 的设备检查健康状态：
 
 ```bash
 curl http://100.64.0.10:8000/v1/health
@@ -283,7 +283,7 @@ MinerU 可能需要首次下载模型。下载速度取决于模型源和网络�
 
 **如何卸载？**
 
-先从 Codex 与 WorkBuddy 配置中删除 `document-parser` MCP 条目，再删除安装器创建的应用目录、产物目录和两个客户端中的 `document-parser` Skill 目录。配置备份文件由安装器保留，便于恢复。
+先从 Codex 与 WorkBuddy 配置中删除 `yushu-document-parser` MCP 条目，再删除安装器创建的应用目录、产物目录和两个客户端中的 `document-parser` Skill 目录。配置备份文件由安装器保留，便于恢复。
 
 ## 开发与测试
 
@@ -295,10 +295,10 @@ $env:PYTHONPATH = "src"
 uv run --no-sync python -m unittest discover -s tests -v
 ```
 
-测试覆盖 MinerU SDK 适配、V1 上传和任务轮询、跨域对象存储凭证隔离、ZIP 下载与路径安全校验、原生文件档位选择、中文及空格路径、重复输出目录、批处理失败隔离、客户端配置备份与合并、Skill 工具契约和云端模板。远程接口测试使用模拟 HTTP 传输；它不需要真实服务器。端到端运行 MinerU 仍需要安装上游引擎并下载模型。
+测试覆盖 MinerU SDK 适配、随仓库 wheel 的 SHA-256/版本/源码校验、V1 上传和任务轮询、跨域对象存储凭证隔离、ZIP 下载与路径安全校验、原生文件档位选择、中文及空格路径、重复输出目录、批处理失败隔离、客户端配置备份/迁移/合并、Skill 工具契约和云端模板。远程接口测试使用模拟 HTTP 传输；它不需要真实服务器。端到端运行 MinerU 仍需要安装 wheel 依赖并下载模型。
 
 ## 许可与致谢
 
-本仓库独立适配代码采用 [MIT License](LICENSE)。MinerU 是单独获取和运行的上游项目，其许可**不由本仓库的 MIT 许可证替代**。上游当前许可说明 MinerU 采用 Apache License 2.0 并附加商业门槛与在线服务标识条款；若你基于 MinerU 向第三方提供在线服务，应在产品界面或公开文档显著标明使用了 MinerU。使用前请阅读官方 [MinerU LICENSE.md](https://github.com/opendatalab/MinerU/blob/master/LICENSE.md) 和 [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)。MinerU 模型可能另有许可，需按下载来源单独核对。
+本仓库自己的 MCP 适配代码采用 [MIT License](LICENSE)；该许可不覆盖随仓库分发的 MinerU 源码和 wheel。MinerU 4.0.7 的来源、wheel 哈希和文件范围记录在 [`vendor/mineru-4.0.7/PROVENANCE.md`](vendor/mineru-4.0.7/PROVENANCE.md)，上游许可文本随包保存在 [`vendor/mineru-4.0.7/LICENSE.md`](vendor/mineru-4.0.7/LICENSE.md) 及 `.dist-info/licenses/`。该发行版说明以 Apache License 2.0 为基础并附加商业门槛与在线服务标识条款；若你基于 MinerU 向第三方提供在线服务，应在产品界面或公开文档显著标明使用了 MinerU。使用前请阅读随附许可和 [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)。MinerU 模型可能另有许可，需按下载来源单独核对。
 
 感谢 [OpenDataLab](https://github.com/opendatalab) 及 MinerU 项目提供文档解析引擎。本仓库是对上游工具的独立适配，不代表 OpenDataLab 官方项目或其背书。

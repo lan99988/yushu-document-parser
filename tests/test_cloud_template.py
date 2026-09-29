@@ -16,8 +16,12 @@ class CloudTemplateTests(unittest.TestCase):
         compose = (Path(__file__).parents[1] / "cloud" / "docker-compose.yml").read_text(encoding="utf-8")
         gpu_override = (Path(__file__).parents[1] / "cloud" / "docker-compose.gpu.yml").read_text(encoding="utf-8")
 
-        self.assertIn('"mineru${MINERU_EXTRA}==4.0.7"', dockerfile)
+        self.assertIn("COPY vendor/mineru-4.0.7/mineru-4.0.7-py3-none-any.whl", dockerfile)
+        self.assertIn('"mineru${MINERU_EXTRA} @ file:///opt/mineru-4.0.7-py3-none-any.whl"', dockerfile)
         self.assertIn('ENTRYPOINT ["/usr/local/bin/document-parser-entrypoint"]', dockerfile)
+        self.assertIn("context: ..", compose)
+        self.assertIn("dockerfile: cloud/Dockerfile", compose)
+        self.assertIn("cloud/entrypoint.sh", dockerfile)
         entrypoint = (Path(__file__).parents[1] / "cloud" / "entrypoint.sh").read_text(encoding="utf-8")
         self.assertIn('exec mineru-kit "$@"', entrypoint)
         self.assertIn("/v1/health", compose)
@@ -28,8 +32,10 @@ class CloudTemplateTests(unittest.TestCase):
     def test_windows_installer_pins_407_and_supports_remote_api_auth(self):
         installer = (Path(__file__).parents[1] / "scripts" / "install.ps1").read_text(encoding="utf-8")
 
-        self.assertIn('"mineru==4.0.7"', installer)
-        self.assertIn('"mineru[full]==4.0.7"', installer)
+        self.assertIn('"mineru @ $mineruWheelUri"', installer)
+        self.assertIn('"mineru[full] @ $mineruWheelUri"', installer)
+        self.assertIn('"vendor\\mineru-4.0.7\\$mineruWheelName"', installer)
+        self.assertIn('"--server-name", "yushu-document-parser"', installer)
         self.assertIn('"DOCUMENT_PARSER_REMOTE_TOKEN"', installer)
         self.assertNotIn("mineru[pipeline]==3.2.3", installer)
 

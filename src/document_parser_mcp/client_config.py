@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import argparse
 import shutil
+from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,13 @@ import tomlkit
 def _backup(path: Path) -> None:
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     shutil.copy2(path, path.with_name(f"{path.name}.backup-{stamp}"))
+
+
+def _is_legacy_document_parser_entry(entry: Any) -> bool:
+    if not isinstance(entry, Mapping):
+        return False
+    args = entry.get("args")
+    return isinstance(args, (list, tuple)) and "document_parser_mcp.server" in args
 
 
 def register_codex_server(
@@ -29,6 +37,10 @@ def register_codex_server(
     if servers is None:
         servers = tomlkit.table()
         document["mcp_servers"] = servers
+    if server_name == "yushu-document-parser" and _is_legacy_document_parser_entry(
+        servers.get("document-parser")
+    ):
+        del servers["document-parser"]
     entry = tomlkit.table()
     entry["command"] = command
     entry["args"] = args
@@ -59,6 +71,10 @@ def register_workbuddy_server(
     original = path.read_text(encoding="utf-8") if path.exists() else ""
     document: dict[str, Any] = json.loads(original) if original.strip() else {}
     servers = document.setdefault("mcpServers", {})
+    if server_name == "yushu-document-parser" and _is_legacy_document_parser_entry(
+        servers.get("document-parser")
+    ):
+        del servers["document-parser"]
     servers[server_name] = {"command": command, "args": args, "env": env, "disabled": False}
     updated = json.dumps(document, ensure_ascii=False, indent=2) + "\n"
     if updated == original:

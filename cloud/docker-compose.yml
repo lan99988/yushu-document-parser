@@ -2,8 +2,8 @@ services:
   mineru-api:
     image: ${MINERU_IMAGE:-document-parser-mineru:4.0.7}
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: cloud/Dockerfile
       args:
         TORCH_INDEX_URL: ${TORCH_INDEX_URL:-https://download.pytorch.org/whl/cpu}
     restart: unless-stopped

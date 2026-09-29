@@ -41,6 +41,7 @@ class ServerTests(unittest.TestCase):
         server = create_server(build_service({}))
         tools = asyncio.run(server.list_tools())
 
+        self.assertEqual(server.name, "yushu-document-parser")
         self.assertEqual(
             {tool.name for tool in tools},
             {"parse_document", "parse_documents", "read_parsed_text"},
