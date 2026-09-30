@@ -14,6 +14,9 @@
 - [MCP 工具](#mcp-工具)
 - [输出文件](#输出文件)
 - [Windows 安装](#windows-安装)
+- [快速安装](#快速安装)
+- [AI 助手安装与排障](#ai-助手安装与排障)
+- [安装验证](#安装验证)
 - [选择本机或云端后端](#选择本机或云端后端)
 - [云端部署](#云端部署)
 - [安全与隐私](#安全与隐私)
@@ -164,19 +167,37 @@ output/
 ### 环境要求
 
 - Windows 10/11。
+- Git for Windows，用于克隆仓库；如果已下载仓库，可跳过克隆命令。
 - Python 3.10–3.14，并能在 PowerShell 中运行 `python`。
 - 本机后端需要足够的磁盘空间存放 MinerU 依赖和模型。NVIDIA GPU 可加速 PDF/图片的 standard/advanced 档；没有检测到可用 GPU 时，安装器会询问是否继续安装 CPU 版，CPU 解析通常慢很多。
 - Windows GPU 安装默认使用 PyTorch 官方 CUDA 12.6 wheel 源，并沿用 MinerU 依赖解析出的兼容 PyTorch 版本。若本机 CUDA wheel 源不同，可通过 `-TorchIndexUrl` 指定，例如 `https://download.pytorch.org/whl/cu128`。
 - 云端后端只要求本机 MCP 的 Python 依赖与网络可达，不需要在 Windows 安装 MinerU 引擎或模型。
 
-### 本机解析模式
+### 快速安装
 
-在下载或克隆的仓库目录中打开 PowerShell：
+适用于 Windows 10/11、Python 3.10–3.14，以及 Codex 和 WorkBuddy。安装器会使用当前 Windows 用户的目录，不需要管理员权限；`uv` 是可选项，没有安装时安装器会使用 Python 自带的 `venv` 和 `pip`。
+
+在 PowerShell 中切换到你希望放置仓库的父目录，运行：
 
 ```powershell
-Set-ExecutionPolicy -Scope Process Bypass
-.\scripts\install.ps1
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw "未找到 Git for Windows；请先安装 Git，或在已下载的仓库目录继续。" }
+git clone https://github.com/lan99988/yushu-document-parser.git
+if ($LASTEXITCODE -ne 0) { throw "克隆仓库失败；先检查 Git 和网络连接。" }
+Set-Location .\yushu-document-parser
+
+$python = Get-Command python -ErrorAction SilentlyContinue
+if (-not $python) { throw "未找到 Python；请安装 Python 3.10–3.14，并确保 python 命令可用。" }
+$pythonVersion = (& $python.Source --version 2>&1 | Out-String).Trim()
+if ($pythonVersion -notmatch '^Python 3\.(10|11|12|13|14)\.') { throw "需要 Python 3.10–3.14，当前为：$pythonVersion" }
+Write-Host $pythonVersion
+
+Set-ExecutionPolicy -Scope Process Bypass -Force
+.\scripts\install.ps1 -Backend local
 ```
+
+### 本机解析模式
+
+本机模式不会上传文件。检测不到 NVIDIA GPU 时，安装器会询问是否继续使用 CPU；继续安装后解析速度会较慢。若需连接自己部署的私网 API，请按[使用自有云端解析](#使用自有云端解析)运行远程安装命令。不要因为本机缺少 GPU 就自动切换到远程服务。
 
 安装器会创建隔离 Python 环境，将 MCP 程序安装到 `%LOCALAPPDATA%\DocumentParser\app`，将产物写入 `%LOCALAPPDATA%\DocumentParser\output`，并安装 Skill 到：
 
@@ -189,12 +210,139 @@ GPU 安装会在安装 MinerU 依赖后，从配置的 PyTorch wheel 源重新�
 
 从本仓库 3.2.3 适配版升级时，可以重新运行此安装器：它会备份并合并客户端配置、迁移 MCP 名称、更新 MCP 程序和 Skill，并从仓库内的官方 wheel 安装 MinerU 4.0.7。4.x 的模型缓存与配置和旧版不同，首次解析可能需要重新下载模型。
 
+### AI 助手安装与排障
+
+让 AI 助手执行安装时，要求它按以下顺序工作：
+
+1. 确认当前系统为 Windows 10/11，客户端为 Codex 或 WorkBuddy，并确认用户选择 `local` 或 `remote`。默认使用 `local`，以便文件保留在本机；本机模式没有 GPU 时，在安装器提示处继续 CPU 安装并告知用户解析速度会较慢。
+2. 按上面的快速安装步骤克隆仓库并运行安装器。若目标目录已存在，先检查它是否为本仓库及是否有未提交更改，再决定是否复用；记录完整错误文本、命令退出码和 Python 版本；不要把 API key 写入聊天、README、源代码或诊断日志。
+3. 根据错误类型检查原因，只修复当前用户的项目环境或客户端配置。每次修复后重跑安装器并执行[安装验证](#安装验证)。
+4. 发现缺少兼容 Python、需要管理员权限、缺少远程 API 地址或 API key 时，停止并向用户说明需要补充的内容。不要提权、修改系统级执行策略、重写无关 MCP 配置，也不要擅自把文件改为上传到远程服务器。
+5. 完成基础级验证后，输出独立的 `安装成功` 字样，并列出已通过的检查、后端模式和下一步客户端重启提示。基础级验证失败时输出 `安装未成功`，附上失败检查和下一步处理办法；不得报告安装成功。
+
+常见错误的处理方式：
+
+| 现象 | 检查与处理 |
+| --- | --- |
+| 未找到 `python` 或版本不在 3.10–3.14 | 用 `Get-Command python -All` 和 `python --version` 检查 PATH 中实际调用的解释器。请用户安装兼容版本并在新 PowerShell 中重试；安装器没有 Python 版本参数。 |
+| 创建虚拟环境或安装依赖失败 | 记录完整的 pip/uv 报错，检查网络、磁盘空间和 Python 版本。若是暂时的网络错误，可重试安装器；若安装环境已损坏，先确认目标是 `%LOCALAPPDATA%\DocumentParser\app\.venv`，再重建该虚拟环境并重跑安装器。保留 `output`、客户端配置及其备份。 |
+| 检测不到 NVIDIA GPU | 本机模式可以在安装器提示时输入 `y` 使用 CPU 版，并告知用户解析会较慢；如果用户选择了 remote，则需先取得其私网 API 地址，不得自行切换。 |
+| CUDA/PyTorch wheel 下载或版本错误 | 检查 `nvidia-smi -L` 是否成功以及网络是否能访问配置的 PyTorch wheel 源。只有已确认驱动兼容的源时才使用 `-TorchIndexUrl`；不随意更换 MinerU 或 PyTorch 版本。 |
+| 配置解析、合并失败 | 检查 `%USERPROFILE%\.codex\config.toml` 和 `%USERPROFILE%\.workbuddy\mcp.json` 的错误位置。手动修复前先复制原文件到用户目录作为备份；保留其他 MCP 条目后重跑安装器。 |
+| 写入配置或安装目录时权限不足 | 检查路径是否属于当前用户。安装器默认不需要管理员权限；若设备策略或目标路径要求提权，停止并说明具体路径，请用户处理。 |
+| MCP 握手失败或工具列表不完整 | 检查隔离环境中的包导入、两个客户端配置里的 `command`、`args` 和 `env`，并核对后端配置。修复后重跑安装器和基础验证；不要只因安装器显示“安装完成”就报告成功。 |
+| remote 安装提示地址无效 | `-RemoteUrl` 必须是 Tailscale `.ts.net` 地址或安装器支持的私网地址。请用户提供地址；有 API 鉴权时请用户在本地终端输入 token，不要发送到聊天记录。 |
+
+修复过程只操作 `%LOCALAPPDATA%\DocumentParser\app` 下的本项目环境和当前用户的 Codex/WorkBuddy 配置。配置文件的手动修复应先自行备份；安装器会在覆盖有效配置时创建带时间戳的备份。若错误无法在这些范围内恢复，报告诊断结果和需要用户执行的步骤。
+
+### 安装验证
+
+基础级验证会检查安装 Python、两个客户端的 MCP 配置，以及 MCP stdio 握手和三个工具的发现结果。它不下载 MinerU 模型，也不执行文档解析。安装完成后，在仓库目录的 PowerShell 中运行：
+
+```powershell
+$installPython = Join-Path $env:LOCALAPPDATA "DocumentParser\app\.venv\Scripts\python.exe"
+if (-not (Test-Path $installPython)) { throw "未找到安装器创建的 Python 环境。" }
+
+$verifyScript = @'
+import asyncio
+import json
+import os
+import sys
+import tempfile
+from pathlib import Path
+
+import tomlkit
+from mcp import ClientSession
+from mcp.client.stdio import StdioServerParameters, stdio_client
+
+expected = {"parse_document", "parse_documents", "read_parsed_text"}
+home = Path.home()
+codex_path = home / ".codex" / "config.toml"
+workbuddy_path = home / ".workbuddy" / "mcp.json"
+codex = tomlkit.parse(codex_path.read_text(encoding="utf-8"))["mcp_servers"]["yushu-document-parser"]
+workbuddy = json.loads(workbuddy_path.read_text(encoding="utf-8"))["mcpServers"]["yushu-document-parser"]
+
+for label, entry in (("Codex", codex), ("WorkBuddy", workbuddy)):
+    if Path(entry["command"]).resolve() != Path(sys.executable).resolve():
+        raise RuntimeError(f"{label} MCP 配置未指向当前安装环境")
+    if list(entry["args"]) != ["-m", "document_parser_mcp.server"]:
+        raise RuntimeError(f"{label} MCP 启动参数不正确")
+if workbuddy.get("disabled") is not False:
+    raise RuntimeError("WorkBuddy 中的 MCP 服务处于禁用状态")
+
+for skill_path in (
+    home / ".codex" / "skills" / "document-parser" / "SKILL.md",
+    home / ".workbuddy" / "skills" / "document-parser" / "SKILL.md",
+):
+    if not skill_path.is_file():
+        raise RuntimeError(f"未找到 Skill 文件：{skill_path}")
+
+server_env = dict(codex.get("env", {}))
+if server_env != dict(workbuddy.get("env", {})):
+    raise RuntimeError("Codex 与 WorkBuddy 的 MCP 环境变量不一致")
+backend = server_env.get("DOCUMENT_PARSER_BACKEND")
+if backend not in {"local", "remote"}:
+    raise RuntimeError("MCP 后端未配置为 local 或 remote")
+if backend == "remote" and not server_env.get("DOCUMENT_PARSER_REMOTE_URL"):
+    raise RuntimeError("remote 后端缺少 MinerU API 地址")
+
+async def verify():
+    env = os.environ.copy()
+    env.update(server_env)
+    with tempfile.TemporaryDirectory() as output_dir:
+        env["DOCUMENT_PARSER_OUTPUT_DIR"] = output_dir
+        params = StdioServerParameters(
+            command=sys.executable,
+            args=["-m", "document_parser_mcp.server"],
+            env=env,
+        )
+        async with stdio_client(params) as (read_stream, write_stream):
+            async with ClientSession(read_stream, write_stream) as session:
+                await session.initialize()
+                tools = {tool.name for tool in (await session.list_tools()).tools}
+    if tools != expected:
+        raise RuntimeError(f"MCP 工具不匹配：{sorted(tools)}")
+    print("基础验证通过：安装环境、Codex/WorkBuddy 配置、MCP 握手及三个工具均正常。")
+
+asyncio.run(verify())
+'@
+$verifyBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($verifyScript))
+& $installPython -c "import base64; exec(base64.b64decode('$verifyBase64').decode('utf-8'))"
+if ($LASTEXITCODE -ne 0) { throw "基础安装验证失败；请按 AI 助手安装与排障章节检查错误。" }
+```
+
+只有以上检查全部通过后，才报告：
+
+```text
+安装成功
+验证结果：Python 环境、Codex/WorkBuddy MCP 配置、服务握手及三个工具均正常。
+后端：local 或 remote。
+下一步：重启 Codex 和 WorkBuddy，使配置和 Skill 生效。
+真实文档解析：未执行（基础安装验证不下载模型、不处理用户文档）。
+```
+
+第二级真实解析验证是可选的。它需要一个用户指定的非敏感样例文件；本机模式首次解析可能下载较大的 MinerU 模型。remote 模式会把完整样例文件上传到配置的 MinerU API，必须先确认用户已选择该服务器并同意传送该文件。报告第二级结果时，分别标明通过、失败或未执行；它不改变基础级安装验证的判定。
+
 ### 使用自有云端解析
 
 如果已按[云端部署](#云端部署)启动 API：
 
+无鉴权的 API：
+
 ```powershell
-.\scripts\install.ps1 -Backend remote -RemoteUrl "http://100.64.0.10:8000" -RemoteToken "与服务器相同的 API 密钥"
+.\scripts\install.ps1 -Backend remote -RemoteUrl "http://100.64.0.10:8000"
+```
+
+配置了 API key 的 API：在本地安全终端输入，不要把 key 写入聊天或命令文本。
+
+```powershell
+$secureToken = Read-Host "输入云端 API token" -AsSecureString
+$remoteToken = [System.Net.NetworkCredential]::new("", $secureToken).Password
+try {
+    .\scripts\install.ps1 -Backend remote -RemoteUrl "http://100.64.0.10:8000" -RemoteToken $remoteToken
+} finally {
+    Remove-Variable remoteToken, secureToken -ErrorAction SilentlyContinue
+}
 ```
 
 也可以使用 Tailscale MagicDNS 地址，例如 `http://mineru.tailnet-name.ts.net:8000`。安装器会检查目标属于 Tailscale 或常见私网地址。remote 模式不安装本机 MinerU；选择 remote 表示所选文件会上传到所配置的服务器进行解析。若云端 `.env` 设置了 `MINERU_API_KEY`，客户端要通过 `-RemoteToken` 配置同一密钥。
